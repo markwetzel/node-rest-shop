@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const User = require('../models/user');
 
@@ -34,7 +35,32 @@ router.post('/signup', (req, res, next) => {
   });
 });
 
-router.post('/signin', (req, res, next) => {});
+router.post('/login', (req, res, next) => {
+  User.findOne({ email: req.body.email })
+    .then((user) => {
+      if (!user) {
+        return res.sendStatus(401);
+      }
+
+      bcrypt.compare(req.body.password, user.password, (err, same) => {
+        if (same) {
+          const token = jwt.sign(
+            { email: user.email, userId: user._id },
+            process.env.JWT_KEY,
+            { expiresIn: '1h' }
+          );
+
+          return res.status(200).json({ token });
+        } else {
+          return res.sendStatus(401);
+        }
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+      res.sendStatus(500);
+    });
+});
 
 router.delete('/:id', (req, res, next) => {
   User.deleteOne({ _id: req.params.id })
