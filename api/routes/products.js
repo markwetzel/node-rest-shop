@@ -1,8 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 const multer = require('multer');
 const checkAuth = require('../../middleware/check-auth');
+const {
+  products_get_all,
+  products_create_product,
+  products_get_product,
+  products_update_product,
+  products_delete_product,
+} = require('../controllers/products');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -31,110 +37,19 @@ const upload = multer({
   fileFilter,
 });
 
-const Product = require('../models/product');
+router.get('/', products_get_all);
 
-router.get('/', (req, res, next) => {
-  Product.find()
-    .select('-__v')
-    .then((products) => {
-      const response = {
-        count: products.length,
-        products: products.map((product) => ({
-          name: product.name,
-          price: product.price,
-          productImage: product.productImage,
-          _id: product._id,
-          request: {
-            type: 'GET',
-            url: `${req.get('host')}/products/${product._id}`,
-          },
-        })),
-      };
-      res.status(200).json(response);
-    })
-    .catch((err) => res.status(500).json({ error: err }));
-});
+router.get('/:id', products_get_product);
 
-router.get('/:id', (req, res, next) => {
-  const { id } = req.params;
-  Product.findById(id)
-    .select('-__v')
-    .then((doc) => {
-      if (doc) {
-        res.status(200).json(doc);
-      } else {
-        res.status(404).json({ message: 'No valid product for id' });
-      }
-    })
-    .catch((err) => {
-      console.log(err);
-      res.status(500).json({ error: err });
-    });
-});
+router.post(
+  '/',
+  checkAuth,
+  upload.single('productImage'),
+  products_create_product
+);
 
-router.post('/', checkAuth, upload.single('productImage'), (req, res, next) => {
-  console.log(req.file);
+router.patch('/:id', checkAuth, products_update_product);
 
-  const product = new Product({
-    _id: new mongoose.Types.ObjectId(),
-    name: req.body.name,
-    price: req.body.price,
-    productImage: req.file.path,
-  });
-
-  product
-    .save()
-    .then((product) => {
-      console.log(product);
-      res.status(201).json({
-        createdProduct: {
-          name: product.name,
-          price: product.price,
-          productImage: product.productImage,
-          _id: product._id,
-          request: {
-            type: 'GET',
-            url: `${req.get('host')}/products/${product._id}`,
-          },
-        },
-      });
-    })
-    .catch((err) => {
-      console.log(err);
-      res.status(500).json({ error: err });
-    });
-});
-
-router.patch('/:id', checkAuth, (req, res, next) => {
-  const updateOps = {};
-
-  for (const ops of req.body) {
-    updateOps[ops.propName] = ops.value;
-  }
-
-  Product.update({ _id: req.params.id }, { $set: updateOps })
-    .then((result) => {
-      console.log(result);
-      res.status(200).json({
-        request: {
-          type: 'GET',
-          url: `${req.get('host')}/products/${product._id}`,
-        },
-      });
-    })
-    .catch((err) => {
-      console.log(err);
-      res.status(500).json({ error: err });
-    });
-});
-
-router.delete('/:id', checkAuth, (req, res, next) => {
-  Product.remove({ _id: req.params.id })
-    .exec()
-    .then((result) => {
-      res.status(200).json(result);
-    })
-    .catch((err) => res.status(500).json({ error: err }));
-});
+router.delete('/:id', checkAuth, products_delete_product);
 
 module.exports = router;
